@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Modern Automation with Terraform and Ansible (DEMO) — class accounts</title>
+<!--
+  Class page (2026-10-21): everything a student needs for the class on one link + one password,
+  one tab per resource, live 2FA codes on the row they belong to. For lab VMs that block the
+  clipboard to the host and can't reach Google Sheets. Same encryption as the codes page
+  (AES-256-GCM; key from the page password via PBKDF2-SHA256, 200k iterations).
+
+  Bundle v4:
+    {v:4, title, intro,
+     tabs: [{id, name, note, columns:[{key, label}], code_label?}],      // code_label → live TOTP column
+     rows: [{seat, name, cells:{tabId:{key:value}}, codes:{tabId:{s,d,a}}}]}
+  Bundle v3 (single table) is still accepted.
+-->
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --panel-2:#334155; --text:#e2e8f0; --muted:#94a3b8;
+          --accent:#38bdf8; --code:#4ade80; --error:#f87171; --border:#475569; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--text);
+               font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
+  .container { max-width:1240px; margin:0 auto; padding:28px 20px; }
+  h1 { margin:0 0 6px; font-size:24px; font-weight:600; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:22px; }
+  .prompt { background:var(--panel); border-radius:12px; padding:32px; max-width:460px; }
+  .prompt label { display:block; font-size:14px; color:var(--muted); margin-bottom:8px; }
+  .prompt input, .search input { width:100%; padding:12px 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel-2); color:var(--text); font-size:16px; font-family:inherit; }
+  .prompt input:focus, .search input:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:var(--accent); }
+  .prompt button { margin-top:16px; width:100%; padding:12px; border-radius:8px; border:none; background:var(--accent);
+    color:#0f172a; font-size:16px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .error { color:var(--error); font-size:14px; margin-top:12px; min-height:20px; }
+  .bar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
+  .search { flex:1; min-width:260px; }
+  .timer { display:flex; align-items:center; gap:10px; background:var(--panel); border-radius:10px; padding:8px 14px; }
+  .timer[hidden] { display:none; }
+  .ring { position:relative; width:36px; height:36px; }
+  .ring svg { transform:rotate(-90deg); }
+  .ring circle { fill:none; stroke-width:4; }
+  .ring .track { stroke:var(--panel-2); }
+  .ring .progress { stroke:var(--accent); stroke-linecap:round; transition:stroke-dashoffset .9s linear; }
+  .ring-text { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .timer .t { font-size:13px; color:var(--muted); }
+  .intro { color:var(--muted); font-size:13px; margin:0 0 14px; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .tab { padding:9px 16px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+         color:var(--muted); font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .tab:hover { color:var(--text); }
+  .tab.active { background:var(--accent); border-color:var(--accent); color:#0f172a; }
+  .note { background:var(--panel); border-left:3px solid var(--accent); border-radius:8px; padding:10px 14px;
+          color:var(--text); font-size:13px; margin:0 0 12px; line-height:1.5; }
+  .note code { font-family:"SF Mono",Menlo,Consolas,monospace; background:var(--panel-2); padding:1px 5px; border-radius:4px; }
+  .note[hidden] { display:none; }
+  .wrap { overflow-x:auto; border-radius:12px; }
+  table { width:100%; border-collapse:collapse; background:var(--panel); }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--panel-2); vertical-align:middle; }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; white-space:nowrap; }
+  tr:last-child td { border-bottom:none; }
+  tr.hidden { display:none; }
+  td.seat { color:var(--muted); font-size:13px; white-space:nowrap; }
+  td.name { font-size:15px; white-space:nowrap; }
+  .val { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:13.5px; cursor:pointer; user-select:all;
+         padding:3px 6px; border-radius:6px; white-space:nowrap; }
+  .val:hover { background:var(--panel-2); }
+  .val.copied::after, .code.copied::after { content:" ✓"; color:var(--code); font-family:inherit; font-size:13px; }
+  a.lnk { color:var(--accent); font-size:13px; margin-left:4px; text-decoration:none; }
+  .code { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:20px; color:var(--code);
+          font-variant-numeric:tabular-nums; letter-spacing:.05em; cursor:pointer; user-select:all; white-space:nowrap; }
+  td { white-space:nowrap; }
+  .card { background:var(--panel); border-radius:12px; padding:6px 0; }
+  .card[hidden] { display:none; }
+  .card .who { padding:12px 18px 6px; font-size:17px; font-weight:600; }
+  .card .who span { color:var(--muted); font-weight:400; font-size:14px; margin-left:8px; }
+  .card .kv { display:grid; grid-template-columns:200px 1fr; gap:6px 16px; padding:10px 18px; border-top:1px solid var(--panel-2); align-items:center; }
+  .card .k { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.04em; }
+  .card .v { word-break:break-all; }
+  .card .v .val { white-space:normal; word-break:break-all; }
+  .footer { margin-top:16px; font-size:12px; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Modern Automation with Terraform and Ansible (DEMO)</h1>
+  <div class="sub">Your class accounts and live 2FA codes</div>
+
+  <div id="prompt" class="prompt">
+    <label for="pw">Page password (from your instructor)</label>
+    <input type="password" id="pw" autocomplete="current-password" autofocus>
+    <button id="unlock-btn">Unlock</button>
+    <div class="error" id="error"></div>
+  </div>
+
+  <div id="content" hidden>
+    <div class="bar">
+      <div class="search"><input id="q" placeholder="Type your name, lab VM or seat to see only your row…" autocomplete="off"></div>
+      <div class="timer" id="timer" hidden>
+        <div class="ring">
+          <svg width="36" height="36"><circle class="track" cx="18" cy="18" r="14"></circle>
+          <circle id="ring-progress" class="progress" cx="18" cy="18" r="14" stroke-dasharray="87.96" stroke-dashoffset="0"></circle></svg>
+          <div class="ring-text" id="countdown">30</div>
+        </div>
+        <span class="t">New 2FA codes every 30 s</span>
+      </div>
+    </div>
+    <p class="intro" id="intro"></p>
+    <div class="tabs" id="tabs"></div>
+    <div class="note" id="note" hidden></div>
+    <div class="card" id="card" hidden></div>
+    <div class="wrap" id="tablewrap"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div>
+    <p class="footer">Click any value or code to copy it. Use a 2FA code before the timer runs out.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const BUNDLE_B64 = "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";
+  const DEMO_PASSWORD = "";   // empty on real pages; set only on fake-data demos
+  const PBKDF2_ITERATIONS = 200000, PERIOD = 30;
+
+  function b64toBytes(b64) { const s = atob(b64), o = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) o[i] = s.charCodeAt(i); return o; }
+  const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  function b32(b) { const c = b.toUpperCase().replace(/=+$/, "").replace(/\s+/g, ""); let bits = "";
+    for (const ch of c) { const i = B32.indexOf(ch); if (i < 0) throw new Error("bad base32"); bits += i.toString(2).padStart(5, "0"); }
+    const o = new Uint8Array(Math.floor(bits.length / 8));
+    for (let i = 0; i < o.length; i++) o[i] = parseInt(bits.substr(i * 8, 8), 2); return o; }
+  const keyCache = new Map();
+  async function hkey(e) { const id = e.a + ":" + e.s; if (keyCache.has(id)) return keyCache.get(id);
+    const hash = { SHA1: "SHA-1", SHA256: "SHA-256", SHA512: "SHA-512" }[e.a] || "SHA-1";
+    const k = await crypto.subtle.importKey("raw", b32(e.s), { name: "HMAC", hash }, false, ["sign"]);
+    keyCache.set(id, k); return k; }
+  async function totp(e, t) { const ctr = Math.floor(t / PERIOD), buf = new ArrayBuffer(8), v = new DataView(buf);
+    v.setUint32(0, Math.floor(ctr / 0x100000000)); v.setUint32(4, ctr >>> 0);
+    const h = new Uint8Array(await crypto.subtle.sign("HMAC", await hkey(e), buf)), off = h[h.length - 1] & 15;
+    const n = ((h[off] & 127) << 24) | ((h[off + 1] & 255) << 16) | ((h[off + 2] & 255) << 8) | (h[off + 3] & 255);
+    const d = e.d === 8 ? 8 : 6; return String(n % Math.pow(10, d)).padStart(d, "0"); }
+  const fmt = (c) => c.slice(0, c.length / 2) + " " + c.slice(c.length / 2);
+  async function decrypt(pw) { const b = b64toBytes(BUNDLE_B64);
+    const pk = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), { name: "PBKDF2" }, false, ["deriveKey"]);
+    const k = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b.slice(0, 16), iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+      pk, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    const p = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(16, 28) }, k, b.slice(28));
+    return JSON.parse(new TextDecoder().decode(p)); }
+
+  // v3 (one table) → v4 shape
+  function normalise(d) {
+    if (d.v === 4) return d;
+    const tab = { id: "main", name: d.title || "Accounts", note: d.note || "",
+                  columns: [{ key: "__vm", label: "Lab VM" }].concat(d.columns), code_label: d.code_label || "2FA code" };
+    return { title: d.title, intro: "", tabs: [tab], rows: d.rows.map((r) => ({ seat: r.seat, name: r.name,
+             cells: { main: Object.assign({ __vm: r.vm }, r.cells || {}) }, codes: r.totp ? { main: r.totp } : {} })) };
+  }
+
+  let data = null, current = null;
+  function copyable(el, getText) {
+    el.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(getText()); } catch (_) {}
+      el.classList.add("copied"); setTimeout(() => el.classList.remove("copied"), 1200);
+    });
+  }
+  function valueEl(v) {   // copyable value (+ "open" link for URLs)
+    const frag = document.createDocumentFragment();
+    const s = document.createElement("span"); s.className = "val"; s.textContent = v; copyable(s, () => v); frag.appendChild(s);
+    if (/^https?:\/\//.test(v)) { const a = document.createElement("a"); a.className = "lnk"; a.href = v; a.target = "_blank";
+      a.rel = "noopener"; a.textContent = "open ↗"; frag.appendChild(a); }
+    return frag;
+  }
+  function codeEl(i) { const s = document.createElement("span"); s.className = "code"; s.dataset.i = i;
+    copyable(s, () => s.textContent.replace(/[^0-9]/g, "")); return s; }
+  // One person found → show their details as a card (no sideways scrolling); otherwise the table.
+  function filter() {
+    const q = document.getElementById("q").value.trim().toLowerCase();
+    try { sessionStorage.setItem("cp-q", q); } catch (_) {}
+    const trs = [...document.getElementById("body").children];
+    for (const tr of trs) tr.classList.toggle("hidden", q !== "" && !tr.dataset.find.includes(q));
+    const hits = trs.filter((tr) => !tr.classList.contains("hidden"));
+    const card = document.getElementById("card"), wrap = document.getElementById("tablewrap");
+    const one = q !== "" && hits.length === 1;
+    card.hidden = !one; wrap.hidden = one; card.textContent = "";
+    if (!one) { render(); return; }
+    const i = +hits[0].dataset.i, r = data.rows[i], cells = (r.cells || {})[current.id] || {};
+    const who = document.createElement("div"); who.className = "who"; who.textContent = r.name;
+    const seat = document.createElement("span"); seat.textContent = r.seat; who.appendChild(seat); card.appendChild(who);
+    const kv = document.createElement("div"); kv.className = "kv";
+    for (const c of current.columns) {
+      if (!cells[c.key]) continue;
+      const k = document.createElement("div"); k.className = "k"; k.textContent = c.label;
+      const v = document.createElement("div"); v.className = "v"; v.appendChild(valueEl(cells[c.key]));
+      kv.appendChild(k); kv.appendChild(v);
+    }
+    if (current.code_label && (r.codes || {})[current.id]) {
+      const k = document.createElement("div"); k.className = "k"; k.textContent = current.code_label;
+      const v = document.createElement("div"); v.className = "v"; v.appendChild(codeEl(i)); kv.appendChild(k); kv.appendChild(v);
+    }
+    card.appendChild(kv);
+    render();
+  }
+  function showTab(id) {
+    current = data.tabs.find((t) => t.id === id) || data.tabs[0];
+    try { sessionStorage.setItem("cp-tab", current.id); } catch (_) {}
+    for (const b of document.querySelectorAll(".tab")) b.classList.toggle("active", b.dataset.id === current.id);
+    const note = document.getElementById("note");
+    note.hidden = !current.note; note.innerHTML = "";
+    if (current.note) {   // `text` → <code>, everything else as text
+      current.note.split(/(`[^`]+`)/).forEach((part) => {
+        if (/^`[^`]+`$/.test(part)) { const c = document.createElement("code"); c.textContent = part.slice(1, -1); note.appendChild(c); }
+        else note.appendChild(document.createTextNode(part));
+      });
+    }
+    const head = document.getElementById("head"); head.textContent = "";
+    const labels = ["Seat", "Name"].concat(current.columns.map((c) => c.label));
+    if (current.code_label) labels.push(current.code_label);
+    for (const l of labels) { const th = document.createElement("th"); th.textContent = l; head.appendChild(th); }
+    const body = document.getElementById("body"); body.textContent = "";
+    data.rows.forEach((r, i) => {
+      const tr = document.createElement("tr"); tr.dataset.i = i;
+      const vmish = Object.values(r.cells || {}).map((t) => Object.values(t).join(" ")).join(" ");
+      tr.dataset.find = [r.seat, r.name, vmish].join(" ").toLowerCase();
+      const td = (cls, text) => { const c = document.createElement("td"); if (cls) c.className = cls; if (text) c.textContent = text; tr.appendChild(c); return c; };
+      td("seat", r.seat); td("name", r.name);
+      const cells = (r.cells || {})[current.id] || {};
+      for (const c of current.columns) {
+        const cell = td(), v = cells[c.key];
+        if (v) cell.appendChild(valueEl(v));
+      }
+      if (current.code_label) {
+        const cell = td(), e = (r.codes || {})[current.id];
+        if (e) cell.appendChild(codeEl(i));
+      }
+      body.appendChild(tr);
+    });
+    document.getElementById("timer").hidden = !current.code_label;
+    filter();
+  }
+  async function render() {
+    if (!current || !current.code_label) return;
+    const now = Math.floor(Date.now() / 1000), tab = current.id;
+    for (const el of document.querySelectorAll("#card .code, #body tr:not(.hidden) .code")) {
+      const e = (data.rows[+el.dataset.i].codes || {})[tab];
+      const c = fmt(await totp(e, now));
+      if (current.id !== tab) return;
+      if (!el.classList.contains("copied") && el.textContent !== c) el.textContent = c;
+    }
+  }
+  function tick() {
+    const now = Date.now() / 1000, inP = now % PERIOD;
+    document.getElementById("ring-progress").setAttribute("stroke-dashoffset", 2 * Math.PI * 14 * (inP / PERIOD));
+    document.getElementById("countdown").textContent = Math.ceil(PERIOD - inP);
+    render();
+  }
+  async function unlock(pwOverride) {
+    const pw = pwOverride || document.getElementById("pw").value, err = document.getElementById("error");
+    err.textContent = "";
+    try { data = normalise(await decrypt(pw)); } catch (e) { err.textContent = "Incorrect password."; return; }
+    document.getElementById("prompt").hidden = true;
+    document.getElementById("content").hidden = false;
+    document.getElementById("intro").textContent = data.intro || "";
+    const bar = document.getElementById("tabs");
+    bar.hidden = data.tabs.length < 2;
+    for (const t of data.tabs) { const b = document.createElement("button"); b.className = "tab"; b.dataset.id = t.id;
+      b.textContent = t.name; b.addEventListener("click", () => showTab(t.id)); bar.appendChild(b); }
+    let saved = null, q = "";
+    try { saved = sessionStorage.getItem("cp-tab"); q = sessionStorage.getItem("cp-q") || ""; } catch (_) {}
+    document.getElementById("q").value = q;
+    document.getElementById("q").addEventListener("input", filter);
+    showTab(saved);
+    tick(); setInterval(tick, 1000);
+  }
+  document.getElementById("unlock-btn").addEventListener("click", () => unlock());
+  document.getElementById("pw").addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
+  if (DEMO_PASSWORD && DEMO_PASSWORD.indexOf("__") !== 0) unlock(DEMO_PASSWORD);
+})();
+</script>
+</body>
+</html>
