@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Cybersecurity for IT Professionals (11/5, Greene) — class accounts</title>
+<!--
+  Class page (2026-10-21): everything a student needs for the class on one link + one password,
+  one tab per resource, live 2FA codes on the row they belong to. For lab VMs that block the
+  clipboard to the host and can't reach Google Sheets. Same encryption as the codes page
+  (AES-256-GCM; key from the page password via PBKDF2-SHA256, 200k iterations).
+
+  Bundle v4:
+    {v:4, title, intro,
+     tabs: [{id, name, note, columns:[{key, label}], code_label?}],      // code_label → live TOTP column
+     rows: [{seat, name, cells:{tabId:{key:value}}, codes:{tabId:{s,d,a}}}]}
+  Bundle v3 (single table) is still accepted.
+
+  Instructor Show/Hide (2026-10-21): bundle.control = {api, page}. A tab with "locked" keeps its rows'
+  data AES-GCM-encrypted with its own tab key ({rows:{i:{cells, code}}}); the class-page API
+  (scripts/ops/class-page-api) hands out a tab's key only while the instructor shows it. Students'
+  pages check every 30 s. "Instructor" (footer) → instructor password → Show/Hide switches.
+  control.api = "local-demo" keeps the switches in this browser only (fake-data demos).
+-->
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --panel-2:#334155; --text:#e2e8f0; --muted:#94a3b8;
+          --accent:#38bdf8; --code:#4ade80; --error:#f87171; --border:#475569; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--text);
+               font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
+  .container { max-width:1240px; margin:0 auto; padding:28px 20px; }
+  h1 { margin:0 0 6px; font-size:24px; font-weight:600; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:22px; }
+  .prompt { background:var(--panel); border-radius:12px; padding:32px; max-width:460px; }
+  .prompt label { display:block; font-size:14px; color:var(--muted); margin-bottom:8px; }
+  .prompt input, .search input { width:100%; padding:12px 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel-2); color:var(--text); font-size:16px; font-family:inherit; }
+  .prompt input:focus, .search input:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:var(--accent); }
+  .prompt button { margin-top:16px; width:100%; padding:12px; border-radius:8px; border:none; background:var(--accent);
+    color:#0f172a; font-size:16px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .hint { color:var(--muted); font-size:12.5px; margin:-2px 0 10px; }
+  .error { color:var(--error); font-size:14px; margin-top:12px; min-height:20px; }
+  .bar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
+  .search { flex:1; min-width:260px; }
+  .timer { display:flex; align-items:center; gap:10px; background:var(--panel); border-radius:10px; padding:8px 14px; }
+  .timer[hidden] { display:none; }
+  .ring { position:relative; width:36px; height:36px; }
+  .ring svg { transform:rotate(-90deg); }
+  .ring circle { fill:none; stroke-width:4; }
+  .ring .track { stroke:var(--panel-2); }
+  .ring .progress { stroke:var(--accent); stroke-linecap:round; transition:stroke-dashoffset .9s linear; }
+  .ring-text { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .timer .t { font-size:13px; color:var(--muted); }
+  .intro { color:var(--muted); font-size:13px; margin:0 0 14px; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .tab { padding:9px 16px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+         color:var(--muted); font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .tab:hover { color:var(--text); }
+  .tab.active { background:var(--accent); border-color:var(--accent); color:#0f172a; }
+  .note { background:var(--panel); border-left:3px solid var(--accent); border-radius:8px; padding:10px 14px;
+          color:var(--text); font-size:13px; margin:0 0 12px; line-height:1.5; }
+  .note code { font-family:"SF Mono",Menlo,Consolas,monospace; background:var(--panel-2); padding:1px 5px; border-radius:4px; }
+  .note[hidden] { display:none; }
+  .wrap { overflow-x:auto; border-radius:12px; }
+  table { width:100%; border-collapse:collapse; background:var(--panel); }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--panel-2); vertical-align:middle; }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; white-space:nowrap; }
+  tr:last-child td { border-bottom:none; }
+  tr.hidden { display:none; }
+  td.seat { color:var(--muted); font-size:13px; white-space:nowrap; }
+  td.name { font-size:15px; white-space:nowrap; }
+  .val { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:13.5px; cursor:pointer; user-select:all;
+         padding:3px 6px; border-radius:6px; white-space:nowrap; }
+  .val:hover { background:var(--panel-2); }
+  .val.copied::after, .code.copied::after { content:" ✓"; color:var(--code); font-family:inherit; font-size:13px; }
+  a.lnk { color:var(--accent); font-size:13px; margin-left:4px; text-decoration:none; }
+  .code { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:20px; color:var(--code);
+          font-variant-numeric:tabular-nums; letter-spacing:.05em; cursor:pointer; user-select:all; white-space:nowrap; }
+  td { white-space:nowrap; }
+  .card { background:var(--panel); border-radius:12px; padding:6px 0; }
+  .card[hidden] { display:none; }
+  .card .who { padding:12px 18px 6px; font-size:17px; font-weight:600; }
+  .card .who span { color:var(--muted); font-weight:400; font-size:14px; margin-left:8px; }
+  .card .kv { display:grid; grid-template-columns:200px 1fr; gap:6px 16px; padding:10px 18px; border-top:1px solid var(--panel-2); align-items:center; }
+  .card .k { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.04em; }
+  .card .v { word-break:break-all; }
+  .card .v .val { white-space:normal; word-break:break-all; }
+  .status { color:#fbbf24; font-size:13px; margin:0 0 10px; }
+  .status:empty { display:none; }
+  .waiting { background:var(--panel); border-radius:12px; padding:28px; text-align:center; color:var(--muted); }
+  .waiting[hidden] { display:none; }
+  .ilink { color:var(--muted); text-decoration:underline; cursor:pointer; background:none; border:none; font:inherit; padding:0; }
+  .ipanel { background:var(--panel); border:1px solid var(--accent); border-radius:12px; padding:16px 18px; margin:0 0 14px; }
+  .ipanel[hidden] { display:none; }
+  .ipanel h3 { margin:0 0 4px; font-size:15px; }
+  .ipanel p { margin:0 0 12px; color:var(--muted); font-size:13px; }
+  .ipanel .row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-top:1px solid var(--panel-2); }
+  .ipanel .row span { font-size:14px; }
+  .ipanel .row em { color:var(--muted); font-size:12px; font-style:normal; margin-left:8px; }
+  .sw { position:relative; width:46px; height:26px; flex-shrink:0; }
+  .sw input { opacity:0; width:0; height:0; }
+  .sw .s { position:absolute; inset:0; background:var(--panel-2); border-radius:26px; cursor:pointer; transition:.2s; }
+  .sw .s::before { content:""; position:absolute; width:20px; height:20px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; }
+  .sw input:checked + .s { background:var(--code); }
+  .sw input:checked + .s::before { transform:translateX(20px); }
+  .ilogin { display:flex; gap:8px; margin-top:6px; }
+  .ilogin input { flex:1; padding:9px 12px; border-radius:8px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); font-size:14px; }
+  .ilogin button { padding:9px 14px; border-radius:8px; border:none; background:var(--accent); color:#0f172a; font-weight:600; cursor:pointer; }
+  .tab.off { border-style:dashed; opacity:.7; }
+  .footer { margin-top:16px; font-size:12px; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Cybersecurity for IT Professionals (11/5, Greene)</h1>
+  <div class="sub">Your class accounts and live 2FA codes</div>
+
+  <div id="prompt" class="prompt">
+    <label for="pw">Password</label>
+    <div class="hint">Students: the class password your instructor gives you. Instructors: your instructor password.</div>
+    <input type="password" id="pw" autocomplete="current-password" autofocus>
+    <button id="unlock-btn">Unlock</button>
+    <div class="error" id="error"></div>
+  </div>
+
+  <div id="content" hidden>
+    <div class="bar">
+      <div class="search"><input id="q" placeholder="Type your name, lab VM or seat to see only your row…" autocomplete="off"></div>
+      <div class="timer" id="timer" hidden>
+        <div class="ring">
+          <svg width="36" height="36"><circle class="track" cx="18" cy="18" r="14"></circle>
+          <circle id="ring-progress" class="progress" cx="18" cy="18" r="14" stroke-dasharray="87.96" stroke-dashoffset="0"></circle></svg>
+          <div class="ring-text" id="countdown">30</div>
+        </div>
+        <span class="t">New 2FA codes every 30 s</span>
+      </div>
+    </div>
+    <p class="intro" id="intro"></p>
+    <p class="status" id="status"></p>
+    <div class="ipanel" id="ipanel" hidden></div>
+    <div class="tabs" id="tabs"></div>
+    <div class="note" id="note" hidden></div>
+    <div class="card" id="card" hidden></div>
+    <div class="waiting" id="waiting" hidden>Your instructor will open the next section when it's time — this page updates by itself.</div>
+    <div class="wrap" id="tablewrap"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div>
+    <p class="footer">Click any value or code to copy it. Use a 2FA code before the timer runs out.<span id="ifoot"> · <button class="ilink" id="ibtn">Instructor</button></span></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const BUNDLE_B64 = "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";
+  // One box, two passwords (2026-10-21): the content key is wrapped for the class password AND the
+  // instructor password; the instructor one also signs in to Show/Hide. Empty → single-password bundle.
+  const WRAPS_B64 = "W3sicm9sZSI6ICJzdHVkZW50IiwgInciOiAiSGI0N1F3eC9UQXlkMHBBemFXK1U2ZWdhVXR6Y2NJdERYOXVnM090L1JDdks4TDJyZnp4Z1dpRzZpUURmeWVhQ1B0WHZsTEVnUEJmdlZLVDRiZk4zbFBsTmJLMGM3dFVDSmlZYUt3PT0ifSwgeyJyb2xlIjogImluc3RydWN0b3IiLCAidyI6ICI0bExuQlFOUVpFb1hnMTkxbVY4cWhqY0tlbzRObHZPRERxM1ZLeTd3aW9Mc05LSkY5ckpHK1VWYWxZR0Y1QVdGV3phMll5dUZXVHJ3SytWdm1xSUZIelJFM1NiN3ViV053bGU3eUE9PSJ9XQ==";
+  const WRAPS = WRAPS_B64.indexOf("__") === 0 ? [] : JSON.parse(atob(WRAPS_B64));
+  const DEMO_PASSWORD = "";   // empty on real pages; set only on fake-data demos
+  const PBKDF2_ITERATIONS = 200000, PERIOD = 30;
+
+  function b64toBytes(b64) { const s = atob(b64), o = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) o[i] = s.charCodeAt(i); return o; }
+  const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  function b32(b) { const c = b.toUpperCase().replace(/=+$/, "").replace(/\s+/g, ""); let bits = "";
+    for (const ch of c) { const i = B32.indexOf(ch); if (i < 0) throw new Error("bad base32"); bits += i.toString(2).padStart(5, "0"); }
+    const o = new Uint8Array(Math.floor(bits.length / 8));
+    for (let i = 0; i < o.length; i++) o[i] = parseInt(bits.substr(i * 8, 8), 2); return o; }
+  const keyCache = new Map();
+  async function hkey(e) { const id = e.a + ":" + e.s; if (keyCache.has(id)) return keyCache.get(id);
+    const hash = { SHA1: "SHA-1", SHA256: "SHA-256", SHA512: "SHA-512" }[e.a] || "SHA-1";
+    const k = await crypto.subtle.importKey("raw", b32(e.s), { name: "HMAC", hash }, false, ["sign"]);
+    keyCache.set(id, k); return k; }
+  async function totp(e, t) { const ctr = Math.floor(t / PERIOD), buf = new ArrayBuffer(8), v = new DataView(buf);
+    v.setUint32(0, Math.floor(ctr / 0x100000000)); v.setUint32(4, ctr >>> 0);
+    const h = new Uint8Array(await crypto.subtle.sign("HMAC", await hkey(e), buf)), off = h[h.length - 1] & 15;
+    const n = ((h[off] & 127) << 24) | ((h[off + 1] & 255) << 16) | ((h[off + 2] & 255) << 8) | (h[off + 3] & 255);
+    const d = e.d === 8 ? 8 : 6; return String(n % Math.pow(10, d)).padStart(d, "0"); }
+  const fmt = (c) => c.slice(0, c.length / 2) + " " + c.slice(c.length / 2);
+  async function pwKey(pw, salt) {
+    const pk = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), { name: "PBKDF2" }, false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+      pk, { name: "AES-GCM", length: 256 }, false, ["decrypt"]); }
+  // → {data, role}; role "instructor" when the instructor password opened it
+  async function decrypt(pw) {
+    const b = b64toBytes(BUNDLE_B64);
+    if (!WRAPS.length) {
+      const p = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(16, 28) }, await pwKey(pw, b.slice(0, 16)), b.slice(28));
+      return { data: JSON.parse(new TextDecoder().decode(p)), role: "student" };
+    }
+    for (const w of WRAPS) {
+      const x = b64toBytes(w.w);
+      let dek;
+      try { dek = await crypto.subtle.decrypt({ name: "AES-GCM", iv: x.slice(16, 28) }, await pwKey(pw, x.slice(0, 16)), x.slice(28)); }
+      catch (_) { continue; }
+      const k = await crypto.subtle.importKey("raw", dek, { name: "AES-GCM" }, false, ["decrypt"]);
+      const p = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(0, 12) }, k, b.slice(12));
+      return { data: JSON.parse(new TextDecoder().decode(p)), role: w.role };
+    }
+    throw new Error("wrong password");
+  }
+
+  // v3 (one table) → v4 shape
+  function normalise(d) {
+    if (d.v === 4) return d;
+    const tab = { id: "main", name: d.title || "Accounts", note: d.note || "",
+                  columns: [{ key: "__vm", label: "Lab VM" }].concat(d.columns), code_label: d.code_label || "2FA code" };
+    return { title: d.title, intro: "", tabs: [tab], rows: d.rows.map((r) => ({ seat: r.seat, name: r.name,
+             cells: { main: Object.assign({ __vm: r.vm }, r.cells || {}) }, codes: r.totp ? { main: r.totp } : {} })) };
+  }
+
+  let data = null, current = null;
+  // ---- instructor Show/Hide ----
+  let ctl = null, visible = {}, instructor = null;   // instructor = token while signed in
+  const opened = {};                                   // tab id → its locked data is decrypted
+  const setStatus = (t) => { document.getElementById("status").textContent = t || ""; };
+  async function sha256hex(t) { const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+    return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join(""); }
+  async function openTab(t, keyB64) {
+    if (!t.locked || opened[t.id]) return;
+    const b = b64toBytes(t.locked);
+    const k = await crypto.subtle.importKey("raw", b64toBytes(keyB64), { name: "AES-GCM" }, false, ["decrypt"]);
+    const d = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(0, 12) }, k, b.slice(12))));
+    for (const [i, x] of Object.entries(d.rows || {})) {
+      const r = data.rows[+i]; if (!r) continue;
+      r.cells = r.cells || {}; r.codes = r.codes || {};
+      if (x.cells) r.cells[t.id] = x.cells;
+      if (x.code) r.codes[t.id] = x.code;
+    }
+    opened[t.id] = true;
+  }
+  let demoState = null;                                // control.api = "local-demo" only
+  function demoApi(method, body) {
+    if (!demoState) { demoState = {}; for (const t of data.tabs) if (t.locked) demoState[t.id] = true; }
+    const pub = () => ({ visible: Object.assign({}, demoState),
+      keys: Object.fromEntries(Object.entries(ctl.demo_keys).filter(([t]) => demoState[t])) });
+    if (method === "GET") return pub();
+    if (body.token !== ctl.demo_token) { const e = new Error("403"); e.status = 403; throw e; }
+    if (body.action === "keys") return { visible: Object.assign({}, demoState), keys: Object.assign({}, ctl.demo_keys) };
+    demoState[body.tab] = body.visible; return pub();
+  }
+  async function api(method, body) {
+    if (ctl.api === "local-demo") return demoApi(method, body);
+    const opt = { method, cache: "no-store", headers: {} };
+    // text/plain = a "simple" request: no CORS pre-flight (2026-10-21: the JSON pre-flight broke instructor sign-in)
+    if (body) { opt.headers["Content-Type"] = "text/plain;charset=UTF-8"; opt.body = JSON.stringify(body); }
+    const r = await fetch(ctl.api.replace(/\/$/, "") + "/state/" + encodeURIComponent(ctl.page), opt);
+    if (!r.ok) { const e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+    return r.json();
+  }
+  const isShown = (t) => !t.locked || (opened[t.id] && (instructor || visible[t.id]));
+  async function applyState(st) {
+    visible = st.visible || {};
+    for (const t of data.tabs) if (t.locked && st.keys && st.keys[t.id]) { try { await openTab(t, st.keys[t.id]); } catch (_) {} }
+    buildTabs();
+  }
+  async function poll() {
+    if (!ctl || instructor) return;
+    try { await applyState(await api("GET")); setStatus(""); }
+    catch (_) { setStatus("Can't reach the class service right now — showing what's already loaded; it will retry."); }
+  }
+  function buildTabs() {
+    const bar = document.getElementById("tabs"); bar.textContent = "";
+    const shown = data.tabs.filter(isShown);
+    for (const t of shown) { const b = document.createElement("button"); b.className = "tab"; b.dataset.id = t.id;
+      b.textContent = t.name; if (instructor && t.locked && !visible[t.id]) { b.classList.add("off"); b.title = "Hidden from students"; }
+      b.addEventListener("click", () => showTab(t.id)); bar.appendChild(b); }
+    bar.hidden = shown.length < 2;
+    const none = shown.length === 0;
+    document.getElementById("waiting").hidden = !none;
+    for (const id of ["tablewrap", "note", "card"]) if (none) document.getElementById(id).hidden = true;
+    if (none) { current = null; document.getElementById("timer").hidden = true; renderPanel(); return; }
+    document.getElementById("tablewrap").hidden = false;
+    let saved = ""; try { saved = sessionStorage.getItem("cp-tab") || ""; } catch (_) {}
+    showTab(current && isShown(current) ? current.id : saved);
+    renderPanel();
+  }
+  function renderPanel() {
+    const pn = document.getElementById("ipanel");
+    if (!instructor) { pn.hidden = true; return; }
+    pn.hidden = false; pn.textContent = "";
+    const h = document.createElement("h3"); h.textContent = "Instructor: what students can see"; pn.appendChild(h);
+    const p = document.createElement("p"); p.textContent = "Switch a section on when the class reaches it. Students' pages update within about 30 seconds. You always see every tab; dashed tabs are hidden from students."; pn.appendChild(p);
+    for (const t of data.tabs) {
+      const row = document.createElement("div"); row.className = "row";
+      const l = document.createElement("span"); l.textContent = t.name; row.appendChild(l);
+      if (!t.locked) { const em = document.createElement("em"); em.textContent = "always shown"; l.appendChild(em); pn.appendChild(row); continue; }
+      const sw = document.createElement("label"); sw.className = "sw";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!visible[t.id];
+      const sl = document.createElement("span"); sl.className = "s"; sw.appendChild(cb); sw.appendChild(sl); row.appendChild(sw);
+      cb.addEventListener("change", async () => {
+        cb.disabled = true;
+        try { const st = await api("POST", { token: instructor, tab: t.id, visible: cb.checked }); visible = st.visible || visible; setStatus(""); }
+        catch (e) { cb.checked = !cb.checked; setStatus(e.status === 403 ? "Instructor sign-in expired — sign in again." : "Couldn't save that change — try again."); }
+        cb.disabled = false; buildTabs();
+      });
+      pn.appendChild(row);
+    }
+    const out = document.createElement("button"); out.className = "ilink"; out.textContent = "Sign out (student view)";
+    out.addEventListener("click", () => { instructor = null; poll().then(buildTabs); }); pn.appendChild(out);
+  }
+  // → "" on success, else an error message
+  async function signInInstructor(pw) {
+    const tok = await sha256hex(ctl.page + ":" + pw);
+    try { const st = await api("POST", { token: tok, action: "keys" }); instructor = tok;
+          for (const t of data.tabs) if (t.locked && st.keys[t.id]) await openTab(t, st.keys[t.id]);
+          visible = st.visible || {}; buildTabs(); return ""; }
+    catch (e) { return e.status === 403
+        ? "Wrong instructor password (" + pw.length + " characters entered — check nothing was auto-filled)."
+        : "Couldn't reach the class service (" + (e.status ? "HTTP " + e.status : (e.message || e)) + ")."; }
+  }
+  function instructorLogin() {
+    const pn = document.getElementById("ipanel"); pn.hidden = false; pn.textContent = "";
+    const h = document.createElement("h3"); h.textContent = "Instructor sign-in"; pn.appendChild(h);
+    const f = document.createElement("div"); f.className = "ilogin";
+    // never let the browser's password manager fill this with the saved PAGE password (2026-10-21)
+    const i = document.createElement("input"); i.type = "password"; i.placeholder = "Instructor password";
+    i.autocomplete = "new-password"; i.name = "cp-instructor-" + Date.now(); i.value = "";
+    setTimeout(() => { i.value = ""; }, 300);   // some managers fill after render
+    const b = document.createElement("button"); b.textContent = "Sign in"; f.appendChild(i); f.appendChild(b); pn.appendChild(f);
+    const err = document.createElement("div"); err.className = "error"; pn.appendChild(err);
+    const go = async () => {
+      const pw = i.value.trim();
+      if (!pw) { err.textContent = "Type the instructor password."; return; }
+      err.textContent = await signInInstructor(pw);
+    };
+    b.addEventListener("click", go); i.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); }); i.focus();
+  }
+  function copyable(el, getText) {
+    el.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(getText()); } catch (_) {}
+      el.classList.add("copied"); setTimeout(() => el.classList.remove("copied"), 1200);
+    });
+  }
+  function valueEl(v) {   // copyable value (+ "open" link for URLs)
+    const frag = document.createDocumentFragment();
+    const s = document.createElement("span"); s.className = "val"; s.textContent = v; copyable(s, () => v); frag.appendChild(s);
+    if (/^https?:\/\//.test(v)) { const a = document.createElement("a"); a.className = "lnk"; a.href = v; a.target = "_blank";
+      a.rel = "noopener"; a.textContent = "open ↗"; frag.appendChild(a); }
+    return frag;
+  }
+  function codeEl(i) { const s = document.createElement("span"); s.className = "code"; s.dataset.i = i;
+    copyable(s, () => s.textContent.replace(/[^0-9]/g, "")); return s; }
+  // One person found → show their details as a card (no sideways scrolling); otherwise the table.
+  function filter() {
+    const q = document.getElementById("q").value.trim().toLowerCase();
+    try { sessionStorage.setItem("cp-q", q); } catch (_) {}
+    const trs = [...document.getElementById("body").children];
+    for (const tr of trs) tr.classList.toggle("hidden", q !== "" && !tr.dataset.find.includes(q));
+    const hits = trs.filter((tr) => !tr.classList.contains("hidden"));
+    const card = document.getElementById("card"), wrap = document.getElementById("tablewrap");
+    const one = q !== "" && hits.length === 1;
+    card.hidden = !one; wrap.hidden = one; card.textContent = "";
+    if (!one) { render(); return; }
+    const i = +hits[0].dataset.i, r = data.rows[i], cells = (r.cells || {})[current.id] || {};
+    const who = document.createElement("div"); who.className = "who"; who.textContent = r.name;
+    const seat = document.createElement("span"); seat.textContent = r.seat; who.appendChild(seat); card.appendChild(who);
+    const kv = document.createElement("div"); kv.className = "kv";
+    for (const c of current.columns) {
+      if (!cells[c.key]) continue;
+      const k = document.createElement("div"); k.className = "k"; k.textContent = c.label;
+      const v = document.createElement("div"); v.className = "v"; v.appendChild(valueEl(cells[c.key]));
+      kv.appendChild(k); kv.appendChild(v);
+    }
+    if (current.code_label && (r.codes || {})[current.id]) {
+      const k = document.createElement("div"); k.className = "k"; k.textContent = current.code_label;
+      const v = document.createElement("div"); v.className = "v"; v.appendChild(codeEl(i)); kv.appendChild(k); kv.appendChild(v);
+    }
+    card.appendChild(kv);
+    render();
+  }
+  function showTab(id) {
+    const shown = data.tabs.filter(isShown);
+    current = shown.find((t) => t.id === id) || shown[0];
+    if (!current) return;
+    try { sessionStorage.setItem("cp-tab", current.id); } catch (_) {}
+    for (const b of document.querySelectorAll(".tab")) b.classList.toggle("active", b.dataset.id === current.id);
+    const note = document.getElementById("note");
+    note.hidden = !current.note; note.innerHTML = "";
+    if (current.note) {   // `text` → <code>, everything else as text
+      current.note.split(/(`[^`]+`)/).forEach((part) => {
+        if (/^`[^`]+`$/.test(part)) { const c = document.createElement("code"); c.textContent = part.slice(1, -1); note.appendChild(c); }
+        else note.appendChild(document.createTextNode(part));
+      });
+    }
+    const head = document.getElementById("head"); head.textContent = "";
+    const labels = ["Seat", "Name"].concat(current.columns.map((c) => c.label));
+    if (current.code_label) labels.push(current.code_label);
+    for (const l of labels) { const th = document.createElement("th"); th.textContent = l; head.appendChild(th); }
+    const body = document.getElementById("body"); body.textContent = "";
+    data.rows.forEach((r, i) => {
+      const tr = document.createElement("tr"); tr.dataset.i = i;
+      const vmish = Object.values(r.cells || {}).map((t) => Object.values(t).join(" ")).join(" ");
+      tr.dataset.find = [r.seat, r.name, vmish].join(" ").toLowerCase();
+      const td = (cls, text) => { const c = document.createElement("td"); if (cls) c.className = cls; if (text) c.textContent = text; tr.appendChild(c); return c; };
+      td("seat", r.seat); td("name", r.name);
+      const cells = (r.cells || {})[current.id] || {};
+      for (const c of current.columns) {
+        const cell = td(), v = cells[c.key];
+        if (v) cell.appendChild(valueEl(v));
+      }
+      if (current.code_label) {
+        const cell = td(), e = (r.codes || {})[current.id];
+        if (e) cell.appendChild(codeEl(i));
+      }
+      body.appendChild(tr);
+    });
+    document.getElementById("timer").hidden = !current.code_label;
+    filter();
+  }
+  async function render() {
+    if (!current || !current.code_label) return;
+    const now = Math.floor(Date.now() / 1000), tab = current.id;
+    for (const el of document.querySelectorAll("#card .code, #body tr:not(.hidden) .code")) {
+      const e = (data.rows[+el.dataset.i].codes || {})[tab];
+      const c = fmt(await totp(e, now));
+      if (current.id !== tab) return;
+      if (!el.classList.contains("copied") && el.textContent !== c) el.textContent = c;
+    }
+  }
+  function tick() {
+    const now = Date.now() / 1000, inP = now % PERIOD;
+    document.getElementById("ring-progress").setAttribute("stroke-dashoffset", 2 * Math.PI * 14 * (inP / PERIOD));
+    document.getElementById("countdown").textContent = Math.ceil(PERIOD - inP);
+    render();
+  }
+  async function unlock(pwOverride) {
+    const pw = pwOverride || document.getElementById("pw").value, err = document.getElementById("error");
+    err.textContent = "";
+    let role = "student";
+    try { const r = await decrypt(pw); data = normalise(r.data); role = r.role; }
+    catch (e) { err.textContent = "Incorrect password."; return; }
+    document.getElementById("prompt").hidden = true;
+    document.getElementById("content").hidden = false;
+    document.getElementById("intro").textContent = data.intro || "";
+    let q = "";
+    try { q = sessionStorage.getItem("cp-q") || ""; } catch (_) {}
+    document.getElementById("q").value = q;
+    document.getElementById("q").addEventListener("input", filter);
+    ctl = data.control || null;
+    document.getElementById("ifoot").hidden = !ctl;
+    document.getElementById("ibtn").addEventListener("click", instructorLogin);
+    if (ctl) {
+      try { await applyState(await api("GET")); }
+      catch (_) { setStatus("Can't reach the class service right now — some sections may be missing; this page keeps retrying."); buildTabs(); }
+      setInterval(poll, 30000);
+      if (role === "instructor") {   // instructor password in the main box → straight to the switches
+        const m = await signInInstructor(pw);
+        if (m) setStatus(m);
+      }
+    } else buildTabs();
+    tick(); setInterval(tick, 1000);
+  }
+  document.getElementById("unlock-btn").addEventListener("click", () => unlock());
+  document.getElementById("pw").addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
+  if (DEMO_PASSWORD && DEMO_PASSWORD.indexOf("__") !== 0) unlock(DEMO_PASSWORD);
+})();
+</script>
+</body>
+</html>
