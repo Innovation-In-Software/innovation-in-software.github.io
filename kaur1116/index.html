@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>qa-intro-2026-nov16-kaur — 2FA codes</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --code: #4ade80;
+    --error: #f87171;
+    --border: #475569;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+  h1 { margin: 0 0 24px; font-size: 24px; font-weight: 600; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+  .prompt { background: var(--panel); border-radius: 12px; padding: 32px; }
+  .prompt label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  .prompt input {
+    width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); font-size: 16px; font-family: inherit;
+  }
+  .prompt input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+  .prompt button {
+    margin-top: 16px; width: 100%; padding: 12px 14px; border-radius: 8px; border: none;
+    background: var(--accent); color: #0f172a; font-size: 16px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+  }
+  .prompt button:hover { filter: brightness(1.1); }
+  .error { color: var(--error); font-size: 14px; margin-top: 12px; min-height: 20px; }
+
+  .status-bar {
+    display: flex; align-items: center; gap: 16px; padding: 16px 20px;
+    background: var(--panel); border-radius: 12px; margin-bottom: 16px;
+  }
+  .ring { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 4; }
+  .ring .track { stroke: var(--panel-2); }
+  .ring .progress { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 0.9s linear; }
+  .ring-text {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .status-info { display: flex; flex-direction: column; }
+  .status-info .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .status-info .value { font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; }
+  th, td { padding: 14px 20px; text-align: left; border-bottom: 1px solid var(--panel-2); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .account-name { font-size: 15px; }
+  .code {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 22px; color: var(--code); font-variant-numeric: tabular-nums; letter-spacing: 0.05em;
+    cursor: pointer; user-select: all;
+  }
+  .code.copied::after { content: " ✓"; color: var(--muted); font-size: 14px; }
+  .code:hover { filter: brightness(1.2); }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tab {
+    padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel);
+    color: var(--muted); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #0f172a; }
+  .tab .n { font-weight: 400; opacity: 0.75; margin-left: 6px; }
+  .footer { margin-top: 24px; font-size: 12px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>qa-intro-2026-nov16-kaur — 2FA codes</h1>
+
+  <div id="prompt" class="prompt">
+    <p class="subtitle">Enter the class password to view current codes.</p>
+    <label for="pw">Password</label>
+    <input type="password" id="pw" autocomplete="current-password" autofocus>
+    <button id="unlock-btn">Unlock</button>
+    <div class="error" id="error"></div>
+  </div>
+
+  <div id="content" hidden>
+    <div class="status-bar">
+      <div class="ring">
+        <svg width="44" height="44"><circle class="track" cx="22" cy="22" r="18"></circle><circle id="ring-progress" class="progress" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="0"></circle></svg>
+        <div class="ring-text" id="countdown">30</div>
+      </div>
+      <div class="status-info">
+        <span class="label">Codes refresh every</span>
+        <span class="value">30 seconds — synced with Google Authenticator</span>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs" hidden></div>
+    <table>
+      <thead><tr><th id="acct-head">Account</th><th>Current code</th></tr></thead>
+      <tbody id="codes-body"></tbody>
+    </table>
+    <p class="footer">Click any code to copy it to the clipboard.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const BUNDLE_B64 = "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";
+  const PBKDF2_ITERATIONS = 200000;
+  const REFRESH_MS = 1000;
+  const TOTP_PERIOD = 30;
+
+  // ---------- Utilities ----------
+  function b64toBytes(b64) {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  const B32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  function base32ToBytes(b32) {
+    const cleaned = b32.toUpperCase().replace(/=+$/, "").replace(/\s+/g, "");
+    let bits = "";
+    for (const c of cleaned) {
+      const idx = B32_ALPHABET.indexOf(c);
+      if (idx < 0) throw new Error("Invalid base32 character: " + c);
+      bits += idx.toString(2).padStart(5, "0");
+    }
+    const bytes = new Uint8Array(Math.floor(bits.length / 8));
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(bits.substr(i * 8, 8), 2);
+    }
+    return bytes;
+  }
+
+  // ---------- TOTP ----------
+  // entry = {s: base32 secret, d: digits (6|8), a: "SHA1"|"SHA256"|"SHA512"}
+  const totpKeyCache = new Map();
+  async function getKey(e) {
+    const id = e.a + ":" + e.s;
+    if (totpKeyCache.has(id)) return totpKeyCache.get(id);
+    const hash = { SHA1: "SHA-1", SHA256: "SHA-256", SHA512: "SHA-512" }[e.a] || "SHA-1";
+    const key = await crypto.subtle.importKey("raw", base32ToBytes(e.s), { name: "HMAC", hash }, false, ["sign"]);
+    totpKeyCache.set(id, key);
+    return key;
+  }
+  async function totp(e, timestampSec) {
+    const counter = Math.floor(timestampSec / TOTP_PERIOD);
+    const buf = new ArrayBuffer(8);
+    const view = new DataView(buf);
+    view.setUint32(0, Math.floor(counter / 0x100000000));
+    view.setUint32(4, counter >>> 0);
+    const hmac = new Uint8Array(await crypto.subtle.sign("HMAC", await getKey(e), buf));
+    const off = hmac[hmac.length - 1] & 0x0F;
+    const num = (
+      ((hmac[off] & 0x7F) << 24) |
+      ((hmac[off + 1] & 0xFF) << 16) |
+      ((hmac[off + 2] & 0xFF) << 8) |
+      (hmac[off + 3] & 0xFF)
+    );
+    const digits = e.d === 8 ? 8 : 6;
+    return String(num % Math.pow(10, digits)).padStart(digits, "0");
+  }
+  function fmt(code) {
+    const h = code.length / 2;
+    return code.slice(0, h) + " " + code.slice(h);
+  }
+
+  // ---------- Decryption ----------
+  async function decryptBundle(password) {
+    const bundle = b64toBytes(BUNDLE_B64);
+    const salt = bundle.slice(0, 16);
+    const iv = bundle.slice(16, 28);
+    const ciphertext = bundle.slice(28);
+
+    const pwKey = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(password),
+      { name: "PBKDF2" }, false, ["deriveKey"]
+    );
+    const key = await crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+      pwKey,
+      { name: "AES-GCM", length: 256 },
+      false, ["decrypt"]
+    );
+    const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    return JSON.parse(new TextDecoder().decode(plaintext));
+  }
+
+  // ---------- UI ----------
+  // bundle v2: {v: 2, services: {GitHub: {label: entry}, Appian: {...}}}; v1 (flat {label: base32}) = GitHub only
+  let services = null;
+  let current = null;
+
+  function normalise(b) {
+    if (b && b.v === 2) return b.services;
+    const g = {};
+    for (const [label, secret] of Object.entries(b)) g[label] = { s: secret, d: 6, a: "SHA1" };
+    return { GitHub: g };
+  }
+
+  function showTab(name) {
+    current = name;
+    try { sessionStorage.setItem("totp-tab", name); } catch (_) {}
+    for (const b of document.querySelectorAll(".tab")) b.classList.toggle("active", b.dataset.svc === name);
+    document.getElementById("acct-head").textContent = name + " account";
+    const body = document.getElementById("codes-body");
+    body.textContent = "";
+    for (const label of Object.keys(services[name])) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = "<td class=\"account-name\"></td><td class=\"code\"></td>";
+      tr.querySelector(".account-name").textContent = label;
+      tr.querySelector(".code").addEventListener("click", async (e) => {
+        const text = e.target.textContent.replace(/[^0-9]/g, "");
+        try { await navigator.clipboard.writeText(text); } catch (_) {}
+        e.target.classList.add("copied");
+        setTimeout(() => e.target.classList.remove("copied"), 1200);
+      });
+      body.appendChild(tr);
+    }
+    renderCodes();
+  }
+
+  function buildTabs() {
+    const names = Object.keys(services);
+    const bar = document.getElementById("tabs");
+    bar.hidden = names.length < 2;
+    for (const name of names) {
+      const b = document.createElement("button");
+      b.className = "tab";
+      b.dataset.svc = name;
+      b.textContent = name;
+      const n = document.createElement("span");
+      n.className = "n";
+      n.textContent = Object.keys(services[name]).length;
+      b.appendChild(n);
+      b.addEventListener("click", () => showTab(name));
+      bar.appendChild(b);
+    }
+    let saved = null;
+    try { saved = sessionStorage.getItem("totp-tab"); } catch (_) {}
+    showTab(names.includes(saved) ? saved : names[0]);
+  }
+
+  async function renderCodes() {
+    const name = current;
+    const now = Math.floor(Date.now() / 1000);
+    const rows = document.getElementById("codes-body").children;
+    const labels = Object.keys(services[name]);
+    const codes = await Promise.all(labels.map((l) => totp(services[name][l], now)));
+    if (name !== current) return;              // tab switched while computing
+    codes.forEach((c, i) => { if (rows[i]) rows[i].querySelector(".code").textContent = fmt(c); });
+  }
+
+  function tick() {
+    const now = Date.now() / 1000;
+    const inPeriod = now % TOTP_PERIOD;
+    const remain = TOTP_PERIOD - inPeriod;
+    const circumference = 2 * Math.PI * 18;
+    const offset = circumference * (inPeriod / TOTP_PERIOD);
+    document.getElementById("ring-progress").setAttribute("stroke-dashoffset", offset);
+    document.getElementById("countdown").textContent = Math.ceil(remain);
+    renderCodes();
+  }
+
+  async function unlock() {
+    const pw = document.getElementById("pw").value;
+    const err = document.getElementById("error");
+    err.textContent = "";
+    try {
+      services = normalise(await decryptBundle(pw));
+    } catch (e) {
+      err.textContent = "Incorrect password.";
+      return;
+    }
+    document.getElementById("prompt").hidden = true;
+    document.getElementById("content").hidden = false;
+    buildTabs();
+    tick();
+    setInterval(tick, REFRESH_MS);
+  }
+
+  document.getElementById("unlock-btn").addEventListener("click", unlock);
+  document.getElementById("pw").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") unlock();
+  });
+})();
+</script>
+</body>
+</html>
